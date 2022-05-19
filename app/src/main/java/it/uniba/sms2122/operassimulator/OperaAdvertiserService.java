@@ -4,7 +4,9 @@ import android.Manifest;
 import android.app.IntentService;
 import android.app.Service;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
+import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.AdvertisingSet;
 import android.bluetooth.le.AdvertisingSetCallback;
 import android.bluetooth.le.AdvertisingSetParameters;
@@ -34,6 +36,46 @@ public class OperaAdvertiserService extends IntentService {
     private BluetoothLeAdvertiser advertiser;
     private AdvertisingSet currentAdvertisingSet;
     private int currentTxPower;
+
+    private AdvertiseCallback advertiseCallback = new AdvertiseCallback() {
+        @Override
+        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+            super.onStartSuccess(settingsInEffect);
+            Log.i(TAG, "onStartSuccess");
+        }
+
+        @Override
+        public void onStartFailure(int errorCode) {
+            super.onStartFailure(errorCode);
+            String error;
+            switch (errorCode) {
+                case AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED:
+                    error = "Advertise already started";
+                    break;
+
+                case AdvertiseCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS:
+                    error = "Too many advertisers";
+                    break;
+
+                case AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE:
+                    error = "Data too large";
+                    break;
+
+                case AdvertiseCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED:
+                    error = "Feature unsupported";
+                    break;
+
+                case AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR:
+                    error = "Internal error";
+                    break;
+
+                default:
+                    error = "Unknown error";
+                    break;
+            }
+            Log.e(TAG, "onStartFailure: error: " + error);
+        }
+    };
 
     AdvertisingSetCallback advertisingSetCallback = new AdvertisingSetCallback() {
         @Override
@@ -79,19 +121,40 @@ public class OperaAdvertiserService extends IntentService {
     private void startAdvertising() {
         advertiser = ((BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter().getBluetoothLeAdvertiser();
 
+        String museumId = "bbee7b2f3f4649209f54043b4d979a74";
+        String major = "0000";
+        String minor = "0001";
+        String dataHex = "1bffffffbeac" + museumId + major + minor + "bb" + "0000000000000000000000000000000000000000000000000000000000000000000000";   // 70
+        byte[] serviceData = new byte[62];
+        dataHex = dataHex.toUpperCase();
+        for(int i=0; i<serviceData.length; i++) {
+            serviceData[i] = (byte) (Integer.parseInt(dataHex.substring(i*2, i*2+2), 16) & 0xFF);
+        }
+
+        AdvertiseSettings advertiseSettings = new AdvertiseSettings.Builder()
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+                .setConnectable(false)
+                .build();
         AdvertisingSetParameters parameters = new AdvertisingSetParameters.Builder()
                 .setLegacyMode(true)
                 .setConnectable(false)
                 .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
                 .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
                 .build();
-        AdvertiseData data = new AdvertiseData.Builder().setIncludeDeviceName(true).build();
+        AdvertiseData data = new AdvertiseData.Builder()
+                .setIncludeDeviceName(false)
+                .setIncludeTxPowerLevel(false)
+                .addServiceData(new ParcelUuid(UUID.fromString(MUSEUM_ID.toUpperCase())), serviceData)
+                .addServiceUuid(new ParcelUuid(UUID.fromString(MUSEUM_ID.toUpperCase())))
+                .build();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "startAdvertising: permission error");
             return;
         }
-        advertiser.startAdvertisingSet(parameters, data, null, null, null, advertisingSetCallback);
+        advertiser.startAdvertising(advertiseSettings, data, advertiseCallback);
+        //advertiser.startAdvertisingSet(parameters, data, null, null, null, advertisingSetCallback);
     }
 
     @Override
@@ -105,7 +168,8 @@ public class OperaAdvertiserService extends IntentService {
             Log.e(TAG, "stopAdvertising: permission error");
             return;
         }
-        advertiser.stopAdvertisingSet(advertisingSetCallback);
+        advertiser.stopAdvertising(advertiseCallback);
+        //advertiser.stopAdvertisingSet(advertisingSetCallback);
     }
 
     private void changeParameters() {
@@ -113,21 +177,11 @@ public class OperaAdvertiserService extends IntentService {
             Log.e(TAG, "changeParameters: permission error");
             return;
         }
-        String museumId = "bbee7b2f3f4649209f54043b4d979a74";
-        String major = "0000";
-        String minor = "0001";
-        String dataHex = "1bffffffbeac" + museumId + major + minor + currentTxPower + "0000000000000000000000000000000000000000000000000000000000000000000000";   // 70
-        byte[] serviceData = new byte[62];
-        dataHex = dataHex.toUpperCase();
-        for(int i=0; i<serviceData.length; i++) {
-            serviceData[i] = (byte) (Integer.parseInt(dataHex.substring(i*2, i*2+2), 16) & 0xFF);
-        }
 
         currentAdvertisingSet.setAdvertisingData(new AdvertiseData.Builder()
                 .setIncludeDeviceName(true).setIncludeTxPowerLevel(true).build());
         currentAdvertisingSet.setScanResponseData(new AdvertiseData.Builder()
-                .addServiceUuid(new ParcelUuid(UUID.fromString(MUSEUM_ID)))
-                .addServiceData(new ParcelUuid(UUID.fromString(MUSEUM_ID)), serviceData).build());
+                .addServiceUuid(new ParcelUuid(UUID.fromString(MUSEUM_ID))).build());
     }
 
     private byte[] getAdvertisingData(String operaId) {
