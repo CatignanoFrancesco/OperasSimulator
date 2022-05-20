@@ -31,6 +31,9 @@ import java.util.Map;
 import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
+    // TODO Creare il view holder e l'adapter
+    // TODO Prendere i dati dal file
+    // TODO Creare l'oggetto stanza dal Json
 
     private static final String TAG = "MainActivity";
 
@@ -179,5 +182,6 @@ public class MainActivity extends AppCompatActivity {
             stopService(operaId);
         }
     }
+
 
 }
