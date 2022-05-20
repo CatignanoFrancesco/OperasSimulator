@@ -24,6 +24,10 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
@@ -32,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView statusTextView;
     private Permission permission;
+    private Map<String, Intent> startedServices;
     private OperaAdvertiserService service;
     private boolean bounded = false;
 
@@ -41,7 +46,7 @@ public class MainActivity extends AppCompatActivity {
             result -> {
                 if(result.getResultCode() == Activity.RESULT_OK) {
                     Log.d("Bluetooth", "Acceso");
-                    startService();
+                    startServices();
                 } else {
                     Log.d("Bluetooth", "Non acceso");
                     enableBt();
@@ -71,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
 
         statusTextView = findViewById(R.id.status_text_view);
         permission = new Permission(this);
+        startedServices = new HashMap<>();
     }
 
     @Override
@@ -115,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        stopService();
+        stopServices();
     }
 
     @Override
@@ -140,18 +146,39 @@ public class MainActivity extends AppCompatActivity {
             Intent enableBluetooth = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             btActivityResultLauncher.launch(enableBluetooth);
         } else {
-            startService();
+            startServices();
         }
     }
 
-    private void startService() {
+    private void startService(String serviceUuid, String operaId) {
         Intent intent = new Intent(this, OperaAdvertiserService.class);
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+        intent.putExtra("serviceUuid", serviceUuid);
+        intent.putExtra("operaId", operaId);
+        //bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+        startService(intent);
+        startedServices.put(operaId, intent);
     }
 
-    private void stopService() {
-        if(bounded) {
-            unbindService(serviceConnection);
+    private void stopService(String operaId) {
+        if(startedServices.containsKey(operaId)) {
+            stopService(startedServices.get(operaId));
+        }
+    }
+
+    private void startServices() {
+        String[] uuids = {"00000000", "00000001"};
+        String[] operaIds = {"bbee7b2f3f4649209f54043b4d979a7400000000", "bbee7b2f3f4649209f54043b4d979a7400000001"};
+
+        for(int i=0; i<uuids.length; i++) {
+            startService(uuids[i], operaIds[i]);
+        }
+    }
+
+    private void stopServices() {
+        String[] operaIds = {"bbee7b2f3f4649209f54043b4d979a7400000000", "bbee7b2f3f4649209f54043b4d979a7400000001"};
+
+        for(String operaId : operaIds) {
+            stopService(operaId);
         }
     }
 

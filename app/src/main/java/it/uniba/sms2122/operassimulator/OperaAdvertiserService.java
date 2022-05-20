@@ -31,92 +31,84 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
-public class OperaAdvertiserService extends IntentService {
+public class OperaAdvertiserService extends Service {
 
     private static final String TAG = "OperaAdvertiserService";
 
     /**
      * Un uuid è formato da 128 bit. Tuttavia usarli tutti sarebbe dispendioso. Quindi nel caso del bluetooth, si usa un uuid a 16 bit..
-     * L'uuid a 16 bit è fatto in questo modo: si un uuid completo a 128 fatto in questo modo: {@value} e si cambiano solo
+     * L'uuid a 16 bit è fatto in questo modo: si un uuid completo a 128 fatto in questo modo: xxxxxxxx{@value} e si cambiano solo
      * i primi 8 caratteri. In questo caso i caratteri usati sono tutti uguali a 0. Utilizzare un UUID diverso, porta ad errori come "Data too large"
      * <br>
      * <a href="https://www.oreilly.com/library/view/getting-started-with/9781491900550/ch04.html">Fonte</a>
      */
-    private static final String BASE_UUID = "00000000-0000-1000-8000-00805F9B34FB";
+    private static final String LAST_BASE_UUID = "-0000-1000-8000-00805F9B34FB";
+
+    private String serviceUuid;
+    private String operaId;
 
     private BluetoothLeAdvertiser advertiser;
-
-    private AdvertiseCallback advertiseCallback = new AdvertiseCallback() {
-        @Override
-        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-            super.onStartSuccess(settingsInEffect);
-            Log.i(TAG, "onStartSuccess");
-        }
-
-        @Override
-        public void onStartFailure(int errorCode) {
-            super.onStartFailure(errorCode);
-            String error;
-            switch (errorCode) {
-                case AdvertiseCallback.ADVERTISE_FAILED_ALREADY_STARTED:
-                    error = "Advertise already started";
-                    break;
-
-                case AdvertiseCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS:
-                    error = "Too many advertisers";
-                    break;
-
-                case AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE:
-                    error = "Data too large";
-                    break;
-
-                case AdvertiseCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED:
-                    error = "Feature unsupported";
-                    break;
-
-                case AdvertiseCallback.ADVERTISE_FAILED_INTERNAL_ERROR:
-                    error = "Internal error";
-                    break;
-
-                default:
-                    error = "Unknown error";
-                    break;
-            }
-            Log.e(TAG, "onStartFailure: error: " + error);
-        }
-    };
-
+    private AdvertisingSetCallback advertisingSetCallback;
     private final IBinder binder = new LocalBinder();
 
-    public OperaAdvertiserService() {
-        super("OperaAdvertiserService");
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        serviceUuid = intent.getStringExtra("serviceUuid");
+        operaId = intent.getStringExtra("operaId");
+        startAdvertising(serviceUuid+LAST_BASE_UUID, operaId);
+
+        return START_NOT_STICKY;
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        startAdvertising();
         return binder;
     }
 
-    private void startAdvertising() {
+    private void startAdvertising(String serviceUuid, String dataHex) {
+        AdvertisingSetCallback advertisingSetCallback = new AdvertisingSetCallback() {
+            @Override
+            public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
+                super.onAdvertisingSetStarted(advertisingSet, txPower, status);
+                logAdvertisingSetStatus("onAdvertisingSetStarted", status);
+            }
+
+            @Override
+            public void onAdvertisingSetStopped(AdvertisingSet advertisingSet) {
+                super.onAdvertisingSetStopped(advertisingSet);
+                Log.i(TAG, "onAdvertisingSetStopped");
+            }
+
+            @Override
+            public void onAdvertisingDataSet(AdvertisingSet advertisingSet, int status) {
+                super.onAdvertisingDataSet(advertisingSet, status);
+                logAdvertisingSetStatus("onAdvertisingDataSet", status);
+            }
+
+            @Override
+            public void onScanResponseDataSet(AdvertisingSet advertisingSet, int status) {
+                super.onScanResponseDataSet(advertisingSet, status);
+                logAdvertisingSetStatus("onScanResponseDataSet", status);
+            }
+        };
+
+        this.advertisingSetCallback = advertisingSetCallback;
+
         advertiser = ((BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter().getBluetoothLeAdvertiser();
 
-        String museumId = "bbee7b2f3f4649209f54043b4d979a74";
-        String major = "0000";
-        String minor = "0001";
-        String dataHex = museumId + major + minor;
         byte[] serviceData = new byte[20];
         dataHex = dataHex.toUpperCase();
         for(int i=0; i<serviceData.length; i++) {
             serviceData[i] = (byte) (Integer.parseInt(dataHex.substring(i*2, i*2+2), 16) & 0xFF);
         }
 
-        ParcelUuid parcelUuid = new ParcelUuid(UUID.fromString(BASE_UUID));
+        ParcelUuid parcelUuid = new ParcelUuid(UUID.fromString(serviceUuid));
 
-        AdvertiseSettings advertiseSettings = new AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+        AdvertisingSetParameters parameters = new AdvertisingSetParameters.Builder()
+                .setLegacyMode(true)
                 .setConnectable(false)
+                .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
                 .build();
         AdvertiseData data = new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
@@ -129,7 +121,7 @@ public class OperaAdvertiserService extends IntentService {
             Log.e(TAG, "startAdvertising: permission error");
             return;
         }
-        advertiser.startAdvertising(advertiseSettings, data, advertiseCallback);
+        advertiser.startAdvertisingSet(parameters, data, null, null, null, advertisingSetCallback);
     }
 
     @Override
@@ -138,16 +130,56 @@ public class OperaAdvertiserService extends IntentService {
         return super.onUnbind(intent);
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        stopAdvertising();
+    }
+
     public void stopAdvertising() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "stopAdvertising: permission error");
             return;
         }
-        advertiser.stopAdvertising(advertiseCallback);
+        advertiser.stopAdvertisingSet(advertisingSetCallback);
     }
 
-    @Override
-    protected void onHandleIntent(@Nullable Intent intent) {}
+    /**
+     * Effettua il log dei messaggi ottenuti in AdvertisingSetCallback
+     * @param functionName
+     * @param status
+     */
+    private void logAdvertisingSetStatus(String functionName, int status) {
+        switch (status) {
+            case AdvertisingSetCallback.ADVERTISE_SUCCESS:
+                Log.i(TAG, functionName + ": Advertise success");
+                break;
+
+            case AdvertisingSetCallback.ADVERTISE_FAILED_DATA_TOO_LARGE:
+                Log.e(TAG, functionName + ": Data too large");
+                break;
+
+            case AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS:
+                Log.e(TAG, functionName + ": Too many advertisers");
+                break;
+
+            case AdvertisingSetCallback.ADVERTISE_FAILED_ALREADY_STARTED:
+                Log.e(TAG, functionName + ": Already started");
+                break;
+
+            case AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR:
+                Log.e(TAG, functionName + ": Internal error");
+                break;
+
+            case AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED:
+                Log.e(TAG, functionName + ": Feature unsupported");
+                break;
+
+            default:
+                Log.e(TAG, functionName + ": Unknown error");
+                break;
+        }
+    }
 
 
     /**
