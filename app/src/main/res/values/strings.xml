@@ -5,6 +5,8 @@
     <string name="started">Started</string>
     <string name="stopped">Stopped</string>
 
+    <string name="add_room">Add a room</string>
+
     <string name="bt_permission_title">Requesting bluetooth permission</string>
     <string name="bt_permission_body">This permission is mandatory. If you don\'t accept it, you won\'t be able to use the app</string>
     

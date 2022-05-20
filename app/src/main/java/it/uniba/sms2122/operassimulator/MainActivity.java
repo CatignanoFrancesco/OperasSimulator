@@ -34,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
-    private TextView statusTextView;
+    private Button addRoomButton;
     private Permission permission;
     private Map<String, Intent> startedServices;
     private OperaAdvertiserService service;
@@ -59,13 +59,11 @@ public class MainActivity extends AppCompatActivity {
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             service = ((OperaAdvertiserService.LocalBinder) iBinder).getService();
             bounded = true;
-            statusTextView.setText(R.string.started);
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             bounded = false;
-            statusTextView.setText(R.string.stopped);
         }
     };
 
@@ -74,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        statusTextView = findViewById(R.id.status_text_view);
+        addRoomButton = findViewById(R.id.add_stanza_btn);
         permission = new Permission(this);
         startedServices = new HashMap<>();
     }
