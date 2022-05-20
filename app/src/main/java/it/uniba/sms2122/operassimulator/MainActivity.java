@@ -7,6 +7,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.documentfile.provider.DocumentFile;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
 import android.app.Activity;
@@ -23,6 +25,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -31,22 +34,28 @@ import com.google.gson.Gson;
 
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import it.uniba.sms2122.operassimulator.model.Opera;
 import it.uniba.sms2122.operassimulator.model.Stanza;
 import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
     // TODO Creare il view holder e l'adapter
-    // TODO Prendere i dati dal file
     // TODO Creare l'oggetto stanza dal Json
 
     private static final String TAG = "MainActivity";
     private static final String JSON_MIME_TYPE = "application/json";
 
+    private TextView roomNameTV;
     private Button addRoomButton;
+    private RecyclerView recyclerView;
     private Permission permission;
     private Map<String, Intent> startedServices;
     private Stanza selectedStanza;
@@ -79,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
                             // Apro il file
                             try (Reader reader = new InputStreamReader(getContentResolver().openInputStream(uri))) {
                                 selectedStanza = new Gson().fromJson(reader, Stanza.class);
+                                showOperasList();
                             }
                             catch(Exception ex) {
                                 showGenericErrorDialog();
@@ -103,6 +113,7 @@ public class MainActivity extends AppCompatActivity {
         addRoomButton = findViewById(R.id.add_stanza_btn);
         permission = new Permission(this);
         startedServices = new HashMap<>();
+        roomNameTV = findViewById(R.id.room_name);
 
         addRoomButton.setOnClickListener(view -> {
             Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
@@ -183,7 +194,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void startService(String serviceUuid, String operaId) {
+    public void startService(String serviceUuid, String operaId) {
         Intent intent = new Intent(this, OperaAdvertiserService.class);
         intent.putExtra("serviceUuid", serviceUuid);
         intent.putExtra("operaId", operaId);
@@ -191,7 +202,7 @@ public class MainActivity extends AppCompatActivity {
         startedServices.put(operaId, intent);
     }
 
-    private void stopService(String operaId) {
+    public void stopService(String operaId) {
         if(startedServices.containsKey(operaId)) {
             stopService(startedServices.get(operaId));
         }
@@ -220,6 +231,23 @@ public class MainActivity extends AppCompatActivity {
             .setMessage(R.string.error_message)
             .setNeutralButton(R.string.ok, null)
             .show();
+    }
+
+    private void showOperasList() {
+        ArrayList<Opera> opere = new ArrayList<>();
+        for(Map.Entry<String, Opera> entry : selectedStanza.getOpere().entrySet()) {
+            opere.add(entry.getValue());
+        }
+
+        if(recyclerView == null) {
+            addRoomButton.setVisibility(View.GONE);
+            findViewById(R.id.operas_container).setVisibility(View.VISIBLE);
+            recyclerView = findViewById(R.id.operas_list);
+            recyclerView.setAdapter(new RecyclerViewAdapter(this, opere));
+            recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        }
+
+        roomNameTV.setText(selectedStanza.getNome());
     }
 
 }
