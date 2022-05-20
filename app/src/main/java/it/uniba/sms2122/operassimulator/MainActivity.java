@@ -66,7 +66,6 @@ public class MainActivity extends AppCompatActivity {
             result -> {
                 if(result.getResultCode() == Activity.RESULT_OK) {
                     Log.d("Bluetooth", "Acceso");
-                    startServices();
                 } else {
                     Log.d("Bluetooth", "Non acceso");
                     enableBt();
@@ -189,8 +188,6 @@ public class MainActivity extends AppCompatActivity {
         if(!bluetoothAdapter.isEnabled()) {
             Intent enableBluetooth = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             btActivityResultLauncher.launch(enableBluetooth);
-        } else {
-            startServices();
         }
     }
 
@@ -205,23 +202,13 @@ public class MainActivity extends AppCompatActivity {
     public void stopService(String operaId) {
         if(startedServices.containsKey(operaId)) {
             stopService(startedServices.get(operaId));
-        }
-    }
-
-    private void startServices() {
-        String[] uuids = {"00000000", "00000001"};
-        String[] operaIds = {"bbee7b2f3f4649209f54043b4d979a7400000000", "bbee7b2f3f4649209f54043b4d979a7400000001"};
-
-        for(int i=0; i<uuids.length; i++) {
-            startService(uuids[i], operaIds[i]);
+            startedServices.remove(operaId);
         }
     }
 
     private void stopServices() {
-        String[] operaIds = {"bbee7b2f3f4649209f54043b4d979a7400000000", "bbee7b2f3f4649209f54043b4d979a7400000001"};
-
-        for(String operaId : operaIds) {
-            stopService(operaId);
+        for(Map.Entry<String, Intent> entry : startedServices.entrySet()) {
+            stopService(entry.getKey());
         }
     }
 

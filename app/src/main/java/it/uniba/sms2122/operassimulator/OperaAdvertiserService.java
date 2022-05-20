@@ -43,6 +43,7 @@ public class OperaAdvertiserService extends Service {
      * <a href="https://www.oreilly.com/library/view/getting-started-with/9781491900550/ch04.html">Fonte</a>
      */
     private static final String LAST_BASE_UUID = "-0000-1000-8000-00805F9B34FB";
+    private static final String FIRST_BASE_UUID = "0000";
 
     private String serviceUuid;
     private String operaId;
@@ -55,7 +56,7 @@ public class OperaAdvertiserService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         serviceUuid = intent.getStringExtra("serviceUuid");
         operaId = intent.getStringExtra("operaId");
-        startAdvertising(serviceUuid+LAST_BASE_UUID, operaId);
+        startAdvertising(FIRST_BASE_UUID+serviceUuid+LAST_BASE_UUID, operaId);
 
         return START_NOT_STICKY;
     }

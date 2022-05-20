@@ -14,4 +14,7 @@
     <string name="error">Error</string>
     <string name="error_message">An error has occurred</string>
     <string name="ok" translatable="false">OK</string>
+
+    <string name="bt_started">Bluetooth %s started to advertise</string>
+    <string name="bt_stopped">Bluetooth %s stopped</string>
 </resources>
