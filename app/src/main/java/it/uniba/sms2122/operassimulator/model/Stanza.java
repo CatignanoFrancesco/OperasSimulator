@@ -13,6 +13,13 @@ public class Stanza {
 
     public Stanza() {}
 
+    public Stanza(String id, String nome, String descrizione, Map<String, Opera> opere) {
+        this.id = id;
+        this.descrizione = descrizione;
+        this.nome = nome;
+        this.opere = opere;
+    }
+
     public String getId() {
         return id;
     }

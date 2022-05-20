@@ -6,9 +6,11 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.documentfile.provider.DocumentFile;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.ComponentName;
@@ -16,6 +18,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -24,10 +27,15 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.gson.Gson;
+
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import it.uniba.sms2122.operassimulator.model.Stanza;
 import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
@@ -36,12 +44,12 @@ public class MainActivity extends AppCompatActivity {
     // TODO Creare l'oggetto stanza dal Json
 
     private static final String TAG = "MainActivity";
+    private static final String JSON_MIME_TYPE = "application/json";
 
     private Button addRoomButton;
     private Permission permission;
     private Map<String, Intent> startedServices;
-    private OperaAdvertiserService service;
-    private boolean bounded = false;
+    private Stanza selectedStanza;
 
     // Gestione del risultato dell'attivazione del bluetooth
     private final ActivityResultLauncher<Intent> btActivityResultLauncher = registerForActivityResult(
@@ -57,18 +65,35 @@ public class MainActivity extends AppCompatActivity {
             }
     );
 
-    private ServiceConnection serviceConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
-            service = ((OperaAdvertiserService.LocalBinder) iBinder).getService();
-            bounded = true;
-        }
+    private final ActivityResultLauncher<Intent> jsonRoomActivityLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if(result.getResultCode() == Activity.RESULT_OK) {
+                    // Prendo l'uri
+                    Uri uri;
+                    if(result.getData() != null) {
+                        uri = result.getData().getData();
+                        String mimeType = getContentResolver().getType(uri);
 
-        @Override
-        public void onServiceDisconnected(ComponentName componentName) {
-            bounded = false;
-        }
-    };
+                        if(mimeType.equals(JSON_MIME_TYPE)) {
+                            // Apro il file
+                            try (Reader reader = new InputStreamReader(getContentResolver().openInputStream(uri))) {
+                                selectedStanza = new Gson().fromJson(reader, Stanza.class);
+                            }
+                            catch(Exception ex) {
+                                showGenericErrorDialog();
+                                Log.e(TAG, ex.getMessage());
+                            }
+                        } else {
+                            Log.e(TAG, "Errore non previsto sul file aperto");
+                        }
+                    } else {
+                        showGenericErrorDialog();
+                        Log.e(TAG, "uri is null");
+                    }
+                }
+            }
+    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,6 +103,13 @@ public class MainActivity extends AppCompatActivity {
         addRoomButton = findViewById(R.id.add_stanza_btn);
         permission = new Permission(this);
         startedServices = new HashMap<>();
+
+        addRoomButton.setOnClickListener(view -> {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType(JSON_MIME_TYPE);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            jsonRoomActivityLauncher.launch(intent);
+        });
     }
 
     @Override
@@ -155,7 +187,6 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, OperaAdvertiserService.class);
         intent.putExtra("serviceUuid", serviceUuid);
         intent.putExtra("operaId", operaId);
-        //bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
         startService(intent);
         startedServices.put(operaId, intent);
     }
@@ -183,5 +214,41 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void showGenericErrorDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.error)
+            .setMessage(R.string.error_message)
+            .setNeutralButton(R.string.ok, null)
+            .show();
+    }
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

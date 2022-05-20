@@ -9,6 +9,9 @@
 
     <string name="bt_permission_title">Requesting bluetooth permission</string>
     <string name="bt_permission_body">This permission is mandatory. If you don\'t accept it, you won\'t be able to use the app</string>
-    
     <string name="bt_missing">The Bluetooth Low Energy is missing! You can\'t use this app.</string>
+
+    <string name="error">Error</string>
+    <string name="error_message">An error has occurred</string>
+    <string name="ok" translatable="false">OK</string>
 </resources>
