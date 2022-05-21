@@ -4,6 +4,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.documentfile.provider.DocumentFile;
@@ -25,6 +26,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -38,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,8 +51,6 @@ import it.uniba.sms2122.operassimulator.model.Stanza;
 import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
-    // TODO Creare il view holder e l'adapter
-    // TODO Creare l'oggetto stanza dal Json
 
     private static final String TAG = "MainActivity";
     private static final String JSON_MIME_TYPE = "application/json";
@@ -56,6 +58,10 @@ public class MainActivity extends AppCompatActivity {
     private TextView roomNameTV;
     private Button addRoomButton;
     private RecyclerView recyclerView;
+    private RecyclerViewAdapter recyclerViewAdapter;
+    private ConstraintLayout container;
+    private Menu menu;
+
     private Permission permission;
     private Map<String, Intent> startedServices;
     private Stanza selectedStanza;
@@ -87,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
                             // Apro il file
                             try (Reader reader = new InputStreamReader(getContentResolver().openInputStream(uri))) {
                                 selectedStanza = new Gson().fromJson(reader, Stanza.class);
-                                showOperasList();
+                                changeState();
                             }
                             catch(Exception ex) {
                                 showGenericErrorDialog();
@@ -110,6 +116,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         addRoomButton = findViewById(R.id.add_stanza_btn);
+        container = findViewById(R.id.operas_container);
+        recyclerView = findViewById(R.id.operas_list);
+        recyclerViewAdapter = new RecyclerViewAdapter(this);
         permission = new Permission(this);
         startedServices = new HashMap<>();
         roomNameTV = findViewById(R.id.room_name);
@@ -120,6 +129,26 @@ public class MainActivity extends AppCompatActivity {
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             jsonRoomActivityLauncher.launch(intent);
         });
+
+        recyclerView.setAdapter(recyclerViewAdapter);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.advertising, menu);
+        this.menu = menu;
+        menu.findItem(R.id.trash).setVisible(addRoomButton.getVisibility() == View.GONE);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if(item.getItemId() == R.id.trash) {
+            changeState();
+            stopAllServices();
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -164,7 +193,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        stopServices();
+        stopAllServices();
     }
 
     @Override
@@ -202,13 +231,16 @@ public class MainActivity extends AppCompatActivity {
     public void stopService(String operaId) {
         if(startedServices.containsKey(operaId)) {
             stopService(startedServices.get(operaId));
-            startedServices.remove(operaId);
+            recyclerViewAdapter.notifyDataSetChanged();
         }
     }
 
-    private void stopServices() {
-        for(Map.Entry<String, Intent> entry : startedServices.entrySet()) {
-            stopService(entry.getKey());
+    private void stopAllServices() {
+        Iterator<Map.Entry<String, Intent>> i = startedServices.entrySet().iterator();
+
+        while(i.hasNext()) {
+            stopService(i.next().getKey());
+            i.remove();
         }
     }
 
@@ -220,50 +252,30 @@ public class MainActivity extends AppCompatActivity {
             .show();
     }
 
-    private void showOperasList() {
-        ArrayList<Opera> opere = new ArrayList<>();
-        for(Map.Entry<String, Opera> entry : selectedStanza.getOpere().entrySet()) {
-            opere.add(entry.getValue());
-        }
+    private void changeState() {
+        boolean isListVisible = addRoomButton.getVisibility() == View.GONE;
+        recyclerViewAdapter.clear();
+        recyclerViewAdapter.notifyDataSetChanged();
 
-        if(recyclerView == null) {
-            addRoomButton.setVisibility(View.GONE);
-            findViewById(R.id.operas_container).setVisibility(View.VISIBLE);
-            recyclerView = findViewById(R.id.operas_list);
-            recyclerView.setAdapter(new RecyclerViewAdapter(this, opere));
+        if(!isListVisible) {
+            ArrayList<Opera> opere = new ArrayList<>();
+            for(Map.Entry<String, Opera> entry : selectedStanza.getOpere().entrySet()) {
+                opere.add(entry.getValue());
+            }
+
+            recyclerViewAdapter.addOperas(opere);
             recyclerView.setLayoutManager(new LinearLayoutManager(this));
+            roomNameTV.setText(selectedStanza.getNome());
+            addRoomButton.setVisibility(View.GONE);
+            container.setVisibility(View.VISIBLE);
+            isListVisible = true;
+        } else {
+            container.setVisibility(View.GONE);
+            addRoomButton.setVisibility(View.VISIBLE);
+            isListVisible = false;
         }
 
-        roomNameTV.setText(selectedStanza.getNome());
+        menu.findItem(R.id.trash).setVisible(isListVisible);
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

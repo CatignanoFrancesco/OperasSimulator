@@ -17,4 +17,6 @@
 
     <string name="bt_started">Bluetooth %s started to advertise</string>
     <string name="bt_stopped">Bluetooth %s stopped</string>
+
+    <string name="clean">Clean</string>
 </resources>

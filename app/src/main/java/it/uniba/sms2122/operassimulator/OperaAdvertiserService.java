@@ -77,7 +77,7 @@ public class OperaAdvertiserService extends Service {
             @Override
             public void onAdvertisingSetStopped(AdvertisingSet advertisingSet) {
                 super.onAdvertisingSetStopped(advertisingSet);
-                Log.i(TAG, "onAdvertisingSetStopped");
+                Log.i(TAG, "onAdvertisingSetStopped, " + operaId);
             }
 
             @Override
@@ -153,31 +153,31 @@ public class OperaAdvertiserService extends Service {
     private void logAdvertisingSetStatus(String functionName, int status) {
         switch (status) {
             case AdvertisingSetCallback.ADVERTISE_SUCCESS:
-                Log.i(TAG, functionName + ": Advertise success");
+                Log.i(TAG, functionName + ": Advertise success, " + operaId);
                 break;
 
             case AdvertisingSetCallback.ADVERTISE_FAILED_DATA_TOO_LARGE:
-                Log.e(TAG, functionName + ": Data too large");
+                Log.e(TAG, functionName + ": Data too large, " + operaId);
                 break;
 
             case AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS:
-                Log.e(TAG, functionName + ": Too many advertisers");
+                Log.e(TAG, functionName + ": Too many advertisers, " + operaId);
                 break;
 
             case AdvertisingSetCallback.ADVERTISE_FAILED_ALREADY_STARTED:
-                Log.e(TAG, functionName + ": Already started");
+                Log.e(TAG, functionName + ": Already started, " + operaId);
                 break;
 
             case AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR:
-                Log.e(TAG, functionName + ": Internal error");
+                Log.e(TAG, functionName + ": Internal error, " + operaId);
                 break;
 
             case AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED:
-                Log.e(TAG, functionName + ": Feature unsupported");
+                Log.e(TAG, functionName + ": Feature unsupported, " + operaId);
                 break;
 
             default:
-                Log.e(TAG, functionName + ": Unknown error");
+                Log.e(TAG, functionName + ": Unknown error, " + operaId);
                 break;
         }
     }

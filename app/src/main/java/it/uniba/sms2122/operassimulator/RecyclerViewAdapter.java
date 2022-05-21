@@ -1,10 +1,8 @@
 package it.uniba.sms2122.operassimulator;
 
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -19,11 +17,12 @@ import it.uniba.sms2122.operassimulator.model.Opera;
 public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapter.OperaViewHolder> {
     private MainActivity mainActivity;
     private ArrayList<Opera> opere;
-    private HashMap<String, String> serviceUuids = new HashMap<>();
+    private HashMap<String, String> serviceUuids;
 
-    public RecyclerViewAdapter(MainActivity mainActivity, ArrayList<Opera> opere) {
-        this.opere = opere;
+    public RecyclerViewAdapter(MainActivity mainActivity) {
         this.mainActivity = mainActivity;
+        opere = new ArrayList<>();
+        serviceUuids = new HashMap<>();
     }
 
     @NonNull
@@ -38,8 +37,9 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
     public void onBindViewHolder(@NonNull OperaViewHolder holder, int position) {
         String operaId = opere.get(position).getId();
         holder.btSwitch.setText(operaId);
+        holder.btSwitch.setChecked(false);
         serviceUuids.put(operaId, operaId.substring(operaId.length()-4));
-        
+
         holder.btSwitch.setOnClickListener(view -> {
             if(holder.btSwitch.isChecked()) {
                 mainActivity.startService(serviceUuids.get(operaId), operaId);
@@ -49,6 +49,15 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_stopped, operaId), Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    public void clear() {
+        opere.clear();
+        serviceUuids.clear();
+    }
+
+    public void addOperas(ArrayList<Opera> opere) {
+        this.opere.addAll(opere);
     }
 
     @Override
@@ -63,6 +72,7 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
         public OperaViewHolder(@NonNull View itemView) {
             super(itemView);
             btSwitch = itemView.findViewById(R.id.bluetooth_advertisement_switch);
+            btSwitch.setChecked(false);
         }
     }
 }
