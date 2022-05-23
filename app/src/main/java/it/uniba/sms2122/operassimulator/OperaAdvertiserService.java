@@ -1,12 +1,9 @@
 package it.uniba.sms2122.operassimulator;
 
 import android.Manifest;
-import android.app.IntentService;
 import android.app.Service;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
-import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.AdvertisingSet;
 import android.bluetooth.le.AdvertisingSetCallback;
 import android.bluetooth.le.AdvertisingSetParameters;
@@ -14,21 +11,17 @@ import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.Parcel;
 import android.os.ParcelUuid;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public class OperaAdvertiserService extends Service {
@@ -44,56 +37,53 @@ public class OperaAdvertiserService extends Service {
      */
     private static final String LAST_BASE_UUID = "-0000-1000-8000-00805F9B34FB";
     private static final String FIRST_BASE_UUID = "0000";
+    private static final String PREFIX = "it.uniba.sms2122.operassimulator.service.";
+
+    public static final String ACTION_START = PREFIX + "ACTION_START";
+    public static final String ACTION_STOP = PREFIX + "ACTION_STOP";
+    public static final String ACTION_STOP_ALL = PREFIX + "ACTION_STOP_ALL";
 
     private String serviceUuid;
     private String operaId;
 
+    private final Map<String, Integer> advertisements = new HashMap<>();
+
     private BluetoothLeAdvertiser advertiser;
     private AdvertisingSetCallback advertisingSetCallback;
-    private final IBinder binder = new LocalBinder();
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        serviceUuid = intent.getStringExtra("serviceUuid");
+        String action = intent.getAction();
+        serviceUuid = intent.hasExtra("serviceUuid") ? "" : intent.getStringExtra("serviceUuid");
         operaId = intent.getStringExtra("operaId");
-        startAdvertising(FIRST_BASE_UUID+serviceUuid+LAST_BASE_UUID, operaId);
+
+        switch(action) {
+            case ACTION_START:
+                startAdvertising(FIRST_BASE_UUID+serviceUuid+LAST_BASE_UUID, operaId, startId);
+                break;
+            case ACTION_STOP:
+                stopAdvertising(operaId);
+                break;
+            default:
+                Log.d(TAG, "onStartCommand: default");
+                break;
+        }
 
         return START_NOT_STICKY;
     }
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        return binder;
-    }
-
-    private void startAdvertising(String serviceUuid, String dataHex) {
-        AdvertisingSetCallback advertisingSetCallback = new AdvertisingSetCallback() {
-            @Override
-            public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
-                super.onAdvertisingSetStarted(advertisingSet, txPower, status);
-                logAdvertisingSetStatus("onAdvertisingSetStarted", status);
-            }
-
-            @Override
-            public void onAdvertisingSetStopped(AdvertisingSet advertisingSet) {
-                super.onAdvertisingSetStopped(advertisingSet);
-                Log.i(TAG, "onAdvertisingSetStopped, " + operaId);
-            }
-
-            @Override
-            public void onAdvertisingDataSet(AdvertisingSet advertisingSet, int status) {
-                super.onAdvertisingDataSet(advertisingSet, status);
-                logAdvertisingSetStatus("onAdvertisingDataSet", status);
-            }
-
-            @Override
-            public void onScanResponseDataSet(AdvertisingSet advertisingSet, int status) {
-                super.onScanResponseDataSet(advertisingSet, status);
-                logAdvertisingSetStatus("onScanResponseDataSet", status);
-            }
-        };
-
-        this.advertisingSetCallback = advertisingSetCallback;
+    /**
+     * Metodo per cominciare l'advertising
+     * @param serviceUuid Il service uuid del del beacon
+     * @param dataHex I dati da trasmettere
+     */
+    private void startAdvertising(String serviceUuid, String dataHex, int startId) {
 
         advertiser = ((BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter().getBluetoothLeAdvertiser();
 
@@ -122,73 +112,109 @@ public class OperaAdvertiserService extends Service {
             Log.e(TAG, "startAdvertising: permission error");
             return;
         }
-        advertiser.startAdvertisingSet(parameters, data, null, null, null, advertisingSetCallback);
-    }
-
-    @Override
-    public boolean onUnbind(Intent intent) {
-        stopAdvertising();
-        return super.onUnbind(intent);
+        advertiser.startAdvertisingSet(parameters, data, null, null, null, new OperaAdvertisingSetCallback(operaId));
+        advertisements.put(operaId, startId);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        stopAdvertising();
+        Log.d(TAG, "onDestroy: service destroyed");
     }
 
-    public void stopAdvertising() {
+    @Override
+    public boolean onUnbind(Intent intent) {
+        Log.d(TAG, "onUnbind: service unbounded");
+        return super.onUnbind(intent);
+    }
+
+    /**
+     * Stoppa la trasmissione dei dati tramite bluetooth.
+     */
+    private void stopAdvertising(String operaId) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
             Log.e(TAG, "stopAdvertising: permission error");
             return;
         }
-        advertiser.stopAdvertisingSet(advertisingSetCallback);
-    }
 
-    /**
-     * Effettua il log dei messaggi ottenuti in AdvertisingSetCallback
-     * @param functionName
-     * @param status
-     */
-    private void logAdvertisingSetStatus(String functionName, int status) {
-        switch (status) {
-            case AdvertisingSetCallback.ADVERTISE_SUCCESS:
-                Log.i(TAG, functionName + ": Advertise success, " + operaId);
-                break;
-
-            case AdvertisingSetCallback.ADVERTISE_FAILED_DATA_TOO_LARGE:
-                Log.e(TAG, functionName + ": Data too large, " + operaId);
-                break;
-
-            case AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS:
-                Log.e(TAG, functionName + ": Too many advertisers, " + operaId);
-                break;
-
-            case AdvertisingSetCallback.ADVERTISE_FAILED_ALREADY_STARTED:
-                Log.e(TAG, functionName + ": Already started, " + operaId);
-                break;
-
-            case AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR:
-                Log.e(TAG, functionName + ": Internal error, " + operaId);
-                break;
-
-            case AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED:
-                Log.e(TAG, functionName + ": Feature unsupported, " + operaId);
-                break;
-
-            default:
-                Log.e(TAG, functionName + ": Unknown error, " + operaId);
-                break;
+        if(advertisements.containsKey(operaId) && advertisements.get(operaId) != null) {
+            advertiser.stopAdvertisingSet(new OperaAdvertisingSetCallback(operaId));
         }
     }
 
 
-    /**
-     * Classe che estende il binder
-     */
-    public class LocalBinder extends Binder {
-        OperaAdvertiserService getService() {
-            return OperaAdvertiserService.this;
+
+    public class OperaAdvertisingSetCallback extends AdvertisingSetCallback {
+        private static final String TAG = "OperaAdvertisingSetCallback";
+
+        private String operaId;
+
+        public OperaAdvertisingSetCallback(String operaId) {
+            this.operaId = operaId;
+        }
+
+        @Override
+        public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
+            super.onAdvertisingSetStarted(advertisingSet, txPower, status);
+            logAdvertisingSetStatus("onAdvertisingSetStarted", status);
+        }
+
+        @Override
+        public void onAdvertisingSetStopped(AdvertisingSet advertisingSet) {
+            super.onAdvertisingSetStopped(advertisingSet);
+            Log.i(TAG, "onAdvertisingSetStopped, " + operaId);
+            stopSelf(advertisements.remove(operaId));
+        }
+
+        @Override
+        public void onAdvertisingDataSet(AdvertisingSet advertisingSet, int status) {
+            super.onAdvertisingDataSet(advertisingSet, status);
+            logAdvertisingSetStatus("onAdvertisingDataSet", status);
+        }
+
+        @Override
+        public void onScanResponseDataSet(AdvertisingSet advertisingSet, int status) {
+            super.onScanResponseDataSet(advertisingSet, status);
+            logAdvertisingSetStatus("onScanResponseDataSet", status);
+        }
+
+        /**
+         * Effettua il log dei messaggi ottenuti in AdvertisingSetCallback
+         * @param functionName
+         * @param status
+         */
+        private void logAdvertisingSetStatus(String functionName, int status) {
+            switch (status) {
+                case AdvertisingSetCallback.ADVERTISE_SUCCESS:
+                    Log.i(TAG, functionName + ": Advertise success, " + operaId);
+                    break;
+
+                case AdvertisingSetCallback.ADVERTISE_FAILED_DATA_TOO_LARGE:
+                    Log.e(TAG, functionName + ": Data too large, " + operaId);
+                    break;
+
+                case AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS:
+                    Log.e(TAG, functionName + ": Too many advertisers, " + operaId);
+                    break;
+
+                case AdvertisingSetCallback.ADVERTISE_FAILED_ALREADY_STARTED:
+                    Log.e(TAG, functionName + ": Already started, " + operaId);
+                    break;
+
+                case AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR:
+                    Log.e(TAG, functionName + ": Internal error, " + operaId);
+                    break;
+
+                case AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED:
+                    Log.e(TAG, functionName + ": Feature unsupported, " + operaId);
+                    break;
+
+                default:
+                    Log.e(TAG, functionName + ": Unknown error, " + operaId);
+                    break;
+            }
         }
     }
+
+
 }

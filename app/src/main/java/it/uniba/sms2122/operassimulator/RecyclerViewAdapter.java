@@ -15,9 +15,9 @@ import java.util.HashMap;
 import it.uniba.sms2122.operassimulator.model.Opera;
 
 public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapter.OperaViewHolder> {
-    private MainActivity mainActivity;
-    private ArrayList<Opera> opere;
-    private HashMap<String, String> serviceUuids;
+    private final MainActivity mainActivity;
+    private static ArrayList<Opera> opere;
+    private static HashMap<String, String> serviceUuids;
 
     public RecyclerViewAdapter(MainActivity mainActivity) {
         this.mainActivity = mainActivity;
@@ -40,12 +40,12 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
         holder.btSwitch.setChecked(false);
         serviceUuids.put(operaId, operaId.substring(operaId.length()-4));
 
-        holder.btSwitch.setOnClickListener(view -> {
-            if(holder.btSwitch.isChecked()) {
+        holder.btSwitch.setOnCheckedChangeListener((compoundButton, bChecked) -> {
+            if(bChecked) {
                 mainActivity.startService(serviceUuids.get(operaId), operaId);
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_started, operaId), Toast.LENGTH_SHORT).show();
             } else {
-                mainActivity.stopService(operaId);
+                mainActivity.stopOperaService(operaId);
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_stopped, operaId), Toast.LENGTH_SHORT).show();
             }
         });
@@ -57,7 +57,7 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
     }
 
     public void addOperas(ArrayList<Opera> opere) {
-        this.opere.addAll(opere);
+        RecyclerViewAdapter.opere.addAll(opere);
     }
 
     @Override

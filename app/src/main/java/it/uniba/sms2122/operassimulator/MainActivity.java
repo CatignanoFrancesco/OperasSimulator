@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
@@ -38,6 +39,7 @@ import com.google.gson.Gson;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,7 +53,8 @@ import it.uniba.sms2122.operassimulator.model.Stanza;
 import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
-
+    // TODO Aggiungere i metodi pubblici in OperaAdveriserService
+    // TODO Cambiare gli stop
     private static final String TAG = "MainActivity";
     private static final String JSON_MIME_TYPE = "application/json";
 
@@ -64,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
     private Permission permission;
     private Map<String, Intent> startedServices;
+    private final ArrayList<OperaAdvertiserService> operaAdvertiserServices = new ArrayList<>();
     private Stanza selectedStanza;
 
     // Gestione del risultato dell'attivazione del bluetooth
@@ -79,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
             }
     );
 
+    // Gestione dell'activity per selezionare il file json
     private final ActivityResultLauncher<Intent> jsonRoomActivityLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -222,25 +227,23 @@ public class MainActivity extends AppCompatActivity {
 
     public void startService(String serviceUuid, String operaId) {
         Intent intent = new Intent(this, OperaAdvertiserService.class);
+        intent.setAction(OperaAdvertiserService.ACTION_START);
         intent.putExtra("serviceUuid", serviceUuid);
         intent.putExtra("operaId", operaId);
         startService(intent);
-        startedServices.put(operaId, intent);
+        //startedServices.put(operaId, intent);
     }
 
-    public void stopService(String operaId) {
-        if(startedServices.containsKey(operaId)) {
-            stopService(startedServices.get(operaId));
-            recyclerViewAdapter.notifyDataSetChanged();
-        }
+    public void stopOperaService(String operaId) {
+        Intent intent = new Intent(this, OperaAdvertiserService.class);
+        intent.setAction(OperaAdvertiserService.ACTION_STOP);
+        intent.putExtra("operaId", operaId);
+        startService(intent);
     }
 
     private void stopAllServices() {
-        Iterator<Map.Entry<String, Intent>> i = startedServices.entrySet().iterator();
-
-        while(i.hasNext()) {
-            stopService(i.next().getKey());
-            i.remove();
+        for(Map.Entry<String, Intent> entry : startedServices.entrySet()) {
+            stopOperaService(entry.getKey());
         }
     }
 
