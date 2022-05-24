@@ -1,52 +1,33 @@
 package it.uniba.sms2122.operassimulator;
 
-import android.Manifest;
 import android.app.Service;
-import android.bluetooth.BluetoothManager;
-import android.bluetooth.le.AdvertiseCallback;
-import android.bluetooth.le.AdvertiseData;
-import android.bluetooth.le.AdvertiseSettings;
-import android.bluetooth.le.AdvertisingSet;
-import android.bluetooth.le.AdvertisingSetCallback;
-import android.bluetooth.le.AdvertisingSetParameters;
-import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.IBinder;
-import android.os.ParcelUuid;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.UUID;
-
-import it.uniba.sms2122.operassimulator.model.Opera;
 
 public class OperaAdvertiserService extends Service {
-
     private static final String TAG = "OperaAdvertiserService";
-
-
     private static final String PREFIX = "it.uniba.sms2122.operassimulator.service.";
-
     public static final String ACTION_START = PREFIX + "ACTION_START";
     public static final String ACTION_STOP = PREFIX + "ACTION_STOP";
     public static final String ACTION_STOP_ALL = PREFIX + "ACTION_STOP_ALL";
 
-    private String serviceUuid;
-    private String operaId;
+    private Map<String, Integer> activeServices;    // Gli id dei servizi attivi.
+    private Map<String, OperaAdvertiser> activeAdvertisers; // Gli advertiser attivi.
 
-    private final Map<String, Integer> advertisements = new HashMap<>();
-    private final Map<String, OperaAdvertiser> advertisers = new HashMap<>();
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        activeServices = new HashMap<>();
+        activeAdvertisers = new HashMap<>();
+    }
 
     @Nullable
     @Override
@@ -77,58 +58,50 @@ public class OperaAdvertiserService extends Service {
         return START_NOT_STICKY;
     }
 
+    /**
+     * Crea un advertiser e fa partire l'advertising.
+     * @param operaId L'id dell'opera di cui fare l'advertising
+     * @param serviceUuid Il service uuid dell'adveriser
+     * @param startId Lo start id del service
+     */
     private void startAdvertising(String operaId, String serviceUuid, int startId) {
-        if(!advertisers.containsKey(operaId)) {
+        if(!activeAdvertisers.containsKey(operaId)) {
             OperaAdvertiser operaAdvertiser = new OperaAdvertiser(this, operaId, serviceUuid);
-            advertisers.put(operaId, operaAdvertiser);
-            advertisements.put(operaId, startId);
+            activeAdvertisers.put(operaId, operaAdvertiser);
+            activeServices.put(operaId, startId);
 
             operaAdvertiser.startAdvertising();
         }
     }
 
+    /**
+     * Stoppa l'advertising di una determinata opera.
+     * @param operaId L'id dell'opera di cui si vuole stoppare l'advertising
+     */
     private void stopAdverting(String operaId) {
-        if(advertisers.containsKey(operaId)) {
-            OperaAdvertiser operaAdvertiser = advertisers.get(operaId);
+        if(activeAdvertisers.containsKey(operaId)) {
+            OperaAdvertiser operaAdvertiser = activeAdvertisers.get(operaId);
             operaAdvertiser.stopAdvertising();
-            advertisers.remove(operaId);
-            int startId = advertisements.remove(operaId);
+            activeAdvertisers.remove(operaId);
+            int startId = activeServices.remove(operaId);
             stopSelf(startId);
         }
     }
 
+    /**
+     * Stoppa tutti gli advertising attivi.
+     */
     private void stopAllAdvertising() {
-        if(advertisers.size() > 0) {
-            for(Map.Entry<String, OperaAdvertiser> entry : advertisers.entrySet()) {
-                OperaAdvertiser operaAdvertiser = advertisers.get(entry.getKey());
+        if(activeAdvertisers.size() > 0) {
+            for(Map.Entry<String, OperaAdvertiser> entry : activeAdvertisers.entrySet()) {
+                OperaAdvertiser operaAdvertiser = activeAdvertisers.get(entry.getKey());
                 operaAdvertiser.stopAdvertising();
-                int startId = advertisements.get(entry.getKey());
+                int startId = activeServices.get(entry.getKey());
                 stopSelf(startId);
             }
-            advertisers.clear();
-            advertisements.clear();
+            activeAdvertisers.clear();
+            activeServices.clear();
         }
-    }
-
-    public static void startService(Context context, String operaId, String serviceUuid) {
-        Intent i = new Intent(context, OperaAdvertiserService.class);
-        i.setAction(ACTION_START);
-        i.putExtra("operaId", operaId);
-        i.putExtra("serviceUuid", serviceUuid);
-        context.startService(i);
-    }
-
-    public static void stopService(Context context, String operaId) {
-        Intent i = new Intent(context, OperaAdvertiserService.class);
-        i.setAction(ACTION_STOP);
-        i.putExtra("operaId", operaId);
-        context.startService(i);
-    }
-
-    public static void stopAllServices(Context context) {
-        Intent i = new Intent(context, OperaAdvertiserService.class);
-        i.setAction(ACTION_STOP_ALL);
-        context.startService(i);
     }
 
     @Override
@@ -144,77 +117,46 @@ public class OperaAdvertiserService extends Service {
     }
 
 
-    public class OperaAdvertisingSetCallback extends AdvertisingSetCallback {
-        private static final String TAG = "OperaAdvertisingSetCallback";
-
-        private String operaId;
-
-        public OperaAdvertisingSetCallback(String operaId) {
-            this.operaId = operaId;
-        }
-
-        @Override
-        public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
-            super.onAdvertisingSetStarted(advertisingSet, txPower, status);
-            logAdvertisingSetStatus("onAdvertisingSetStarted", status);
-        }
-
-        @Override
-        public void onAdvertisingSetStopped(AdvertisingSet advertisingSet) {
-            super.onAdvertisingSetStopped(advertisingSet);
-            Log.i(TAG, "onAdvertisingSetStopped, " + operaId);
-            stopSelf(advertisements.remove(operaId));
-        }
-
-        @Override
-        public void onAdvertisingDataSet(AdvertisingSet advertisingSet, int status) {
-            super.onAdvertisingDataSet(advertisingSet, status);
-            logAdvertisingSetStatus("onAdvertisingDataSet", status);
-        }
-
-        @Override
-        public void onScanResponseDataSet(AdvertisingSet advertisingSet, int status) {
-            super.onScanResponseDataSet(advertisingSet, status);
-            logAdvertisingSetStatus("onScanResponseDataSet", status);
-        }
-
-        /**
-         * Effettua il log dei messaggi ottenuti in AdvertisingSetCallback
-         * @param functionName
-         * @param status
-         */
-        private void logAdvertisingSetStatus(String functionName, int status) {
-            switch (status) {
-                case AdvertisingSetCallback.ADVERTISE_SUCCESS:
-                    Log.i(TAG, functionName + ": Advertise success, " + operaId);
-                    break;
-
-                case AdvertisingSetCallback.ADVERTISE_FAILED_DATA_TOO_LARGE:
-                    Log.e(TAG, functionName + ": Data too large, " + operaId);
-                    break;
-
-                case AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS:
-                    Log.e(TAG, functionName + ": Too many advertisers, " + operaId);
-                    break;
-
-                case AdvertisingSetCallback.ADVERTISE_FAILED_ALREADY_STARTED:
-                    Log.e(TAG, functionName + ": Already started, " + operaId);
-                    break;
-
-                case AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR:
-                    Log.e(TAG, functionName + ": Internal error, " + operaId);
-                    break;
-
-                case AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED:
-                    Log.e(TAG, functionName + ": Feature unsupported, " + operaId);
-                    break;
-
-                default:
-                    Log.e(TAG, functionName + ": Unknown error, " + operaId);
-                    break;
-            }
-        }
+    /*
+     ******************************************
+     *             METODI PUBBLICI
+     * ****************************************
+     *
+     */
+    /**
+     * Metodo pubblico per far partire l'advertising di una determinata opera.
+     * @param context Il contesto
+     * @param operaId L'id dell'opera di cui si vuole fare l'advertising.
+     * @param serviceUuid Il service uuid dell'advertiser.
+     */
+    public static void startService(Context context, String operaId, String serviceUuid) {
+        Intent i = new Intent(context, OperaAdvertiserService.class);
+        i.setAction(ACTION_START);
+        i.putExtra("operaId", operaId);
+        i.putExtra("serviceUuid", serviceUuid);
+        context.startService(i);
     }
 
+    /**
+     * Metodo pubblico per stoppare uno specifico advertising.
+     * @param context Il contesto
+     * @param operaId L'id dell'opera di cui si vuole stoppare l'advertising.
+     */
+    public static void stopService(Context context, String operaId) {
+        Intent i = new Intent(context, OperaAdvertiserService.class);
+        i.setAction(ACTION_STOP);
+        i.putExtra("operaId", operaId);
+        context.startService(i);
+    }
+
+    /**
+     * Metodo pubblico per stoppare tutti gli advertising attivi.
+     * @param context Il contesto.
+     */
+    public static void stopAllServices(Context context) {
+        Intent i = new Intent(context, OperaAdvertiserService.class);
+        i.setAction(ACTION_STOP_ALL);
+        context.startService(i);
+    }
 
 }
