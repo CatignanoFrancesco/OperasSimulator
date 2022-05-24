@@ -5,27 +5,20 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.documentfile.provider.DocumentFile;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -39,22 +32,13 @@ import com.google.gson.Gson;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import it.uniba.sms2122.operassimulator.model.Opera;
 import it.uniba.sms2122.operassimulator.model.Stanza;
 import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
-    // TODO Aggiungere i metodi pubblici in OperaAdveriserService
-    // TODO Cambiare gli stop
     private static final String TAG = "MainActivity";
     private static final String JSON_MIME_TYPE = "application/json";
 
@@ -66,8 +50,6 @@ public class MainActivity extends AppCompatActivity {
     private Menu menu;
 
     private Permission permission;
-    private Map<String, Intent> startedServices;
-    private final ArrayList<OperaAdvertiserService> operaAdvertiserServices = new ArrayList<>();
     private Stanza selectedStanza;
 
     // Gestione del risultato dell'attivazione del bluetooth
@@ -125,7 +107,6 @@ public class MainActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.operas_list);
         recyclerViewAdapter = new RecyclerViewAdapter(this);
         permission = new Permission(this);
-        startedServices = new HashMap<>();
         roomNameTV = findViewById(R.id.room_name);
 
         addRoomButton.setOnClickListener(view -> {
@@ -150,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if(item.getItemId() == R.id.trash) {
             changeState();
-            stopAllServices();
+            OperaAdvertiserService.stopAllServices(this);
             return true;
         }
         return false;
@@ -162,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
 
         /*
          * Se la versione è inferiore a quella indicata, il valore sarà vero, per cui non verranno controllati i permessi.
-         * Se la versione è superiore, quindi il suo valore sarà gestito dai permessi.
+         * Se la versione è superiore, quindi, il suo valore sarà gestito dai permessi.
          */
         boolean permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.S;
         
@@ -198,24 +179,23 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        stopAllServices();
+        OperaAdvertiserService.stopAllServices(this);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        switch (requestCode) {
-            case Permission.BLUETOOTH_PERMISSION_CODE:
-                if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    enableBt();
-                }
-
-            default:
-                Log.d(TAG, "onRequestPermissionsResult: default");
+        if(requestCode == Permission.BLUETOOTH_PERMISSION_CODE) {
+            if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                enableBt();
+            }
         }
     }
 
+    /**
+     * Metodo per abilitare il bluetooth nel dispositivo.
+     */
     private void enableBt() {
         BluetoothAdapter bluetoothAdapter = ((BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter();
 
@@ -225,18 +205,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void startService(String serviceUuid, String operaId) {
-        OperaAdvertiserService.startService(this, operaId, serviceUuid);
-    }
-
-    public void stopOperaService(String operaId) {
-        OperaAdvertiserService.stopService(this, operaId);
-    }
-
-    private void stopAllServices() {
-        OperaAdvertiserService.stopAllServices(this);
-    }
-
+    /**
+     * Metodo per mostrare un generico errore all'utente, per evitare il crash dell'applicazione.
+     */
     private void showGenericErrorDialog() {
         new AlertDialog.Builder(this)
             .setTitle(R.string.error)
@@ -245,6 +216,9 @@ public class MainActivity extends AppCompatActivity {
             .show();
     }
 
+    /**
+     * Metodo per cambiare lo stato dell'activity. Se non viene mostrata, mostra la lista delle opere, altrimenti mostra il pulsante per aggiungerle.
+     */
     private void changeState() {
         boolean isListVisible = addRoomButton.getVisibility() == View.GONE;
         recyclerViewAdapter.clear();

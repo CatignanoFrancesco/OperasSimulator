@@ -42,10 +42,10 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
 
         holder.btSwitch.setOnCheckedChangeListener((compoundButton, bChecked) -> {
             if(bChecked) {
-                mainActivity.startService(serviceUuids.get(operaId), operaId);
+                OperaAdvertiserService.startService(mainActivity, operaId, serviceUuids.get(operaId));
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_started, operaId), Toast.LENGTH_SHORT).show();
             } else {
-                mainActivity.stopOperaService(operaId);
+                OperaAdvertiserService.stopService(mainActivity, operaId);
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_stopped, operaId), Toast.LENGTH_SHORT).show();
             }
         });
