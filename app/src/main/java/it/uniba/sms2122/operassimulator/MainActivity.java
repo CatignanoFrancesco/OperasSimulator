@@ -226,25 +226,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startService(String serviceUuid, String operaId) {
-        Intent intent = new Intent(this, OperaAdvertiserService.class);
-        intent.setAction(OperaAdvertiserService.ACTION_START);
-        intent.putExtra("serviceUuid", serviceUuid);
-        intent.putExtra("operaId", operaId);
-        startService(intent);
-        //startedServices.put(operaId, intent);
+        OperaAdvertiserService.startService(this, operaId, serviceUuid);
     }
 
     public void stopOperaService(String operaId) {
-        Intent intent = new Intent(this, OperaAdvertiserService.class);
-        intent.setAction(OperaAdvertiserService.ACTION_STOP);
-        intent.putExtra("operaId", operaId);
-        startService(intent);
+        OperaAdvertiserService.stopService(this, operaId);
     }
 
     private void stopAllServices() {
-        for(Map.Entry<String, Intent> entry : startedServices.entrySet()) {
-            stopOperaService(entry.getKey());
-        }
+        OperaAdvertiserService.stopAllServices(this);
     }
 
     private void showGenericErrorDialog() {

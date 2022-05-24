@@ -3,7 +3,9 @@ package it.uniba.sms2122.operassimulator;
 import android.Manifest;
 import android.app.Service;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
+import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.AdvertisingSet;
 import android.bluetooth.le.AdvertisingSetCallback;
 import android.bluetooth.le.AdvertisingSetParameters;
@@ -18,25 +20,22 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+
+import it.uniba.sms2122.operassimulator.model.Opera;
 
 public class OperaAdvertiserService extends Service {
 
     private static final String TAG = "OperaAdvertiserService";
 
-    /**
-     * Un uuid è formato da 128 bit. Tuttavia usarli tutti sarebbe dispendioso. Quindi nel caso del bluetooth, si usa un uuid a 16 bit..
-     * L'uuid a 16 bit è fatto in questo modo: si un uuid completo a 128 fatto in questo modo: xxxxxxxx{@value} e si cambiano solo
-     * i primi 8 caratteri. In questo caso i caratteri usati sono tutti uguali a 0. Utilizzare un UUID diverso, porta ad errori come "Data too large"
-     * <br>
-     * <a href="https://www.oreilly.com/library/view/getting-started-with/9781491900550/ch04.html">Fonte</a>
-     */
-    private static final String LAST_BASE_UUID = "-0000-1000-8000-00805F9B34FB";
-    private static final String FIRST_BASE_UUID = "0000";
+
     private static final String PREFIX = "it.uniba.sms2122.operassimulator.service.";
 
     public static final String ACTION_START = PREFIX + "ACTION_START";
@@ -47,9 +46,7 @@ public class OperaAdvertiserService extends Service {
     private String operaId;
 
     private final Map<String, Integer> advertisements = new HashMap<>();
-
-    private BluetoothLeAdvertiser advertiser;
-    private AdvertisingSetCallback advertisingSetCallback;
+    private final Map<String, OperaAdvertiser> advertisers = new HashMap<>();
 
     @Nullable
     @Override
@@ -60,16 +57,18 @@ public class OperaAdvertiserService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent.getAction();
-        serviceUuid = intent.hasExtra("serviceUuid") ? "" : intent.getStringExtra("serviceUuid");
-        operaId = intent.getStringExtra("operaId");
+        String serviceUuid = !intent.hasExtra("serviceUuid") ? "" : intent.getStringExtra("serviceUuid");
+        String operaId = !intent.hasExtra("operaId") ? "" : intent.getStringExtra("operaId");
 
         switch(action) {
             case ACTION_START:
-                startAdvertising(FIRST_BASE_UUID+serviceUuid+LAST_BASE_UUID, operaId, startId);
+                startAdvertising(operaId, serviceUuid, startId);
                 break;
             case ACTION_STOP:
-                stopAdvertising(operaId);
+                stopAdverting(operaId);
                 break;
+            case ACTION_STOP_ALL:
+                stopAllAdvertising();
             default:
                 Log.d(TAG, "onStartCommand: default");
                 break;
@@ -78,42 +77,58 @@ public class OperaAdvertiserService extends Service {
         return START_NOT_STICKY;
     }
 
-    /**
-     * Metodo per cominciare l'advertising
-     * @param serviceUuid Il service uuid del del beacon
-     * @param dataHex I dati da trasmettere
-     */
-    private void startAdvertising(String serviceUuid, String dataHex, int startId) {
+    private void startAdvertising(String operaId, String serviceUuid, int startId) {
+        if(!advertisers.containsKey(operaId)) {
+            OperaAdvertiser operaAdvertiser = new OperaAdvertiser(this, operaId, serviceUuid);
+            advertisers.put(operaId, operaAdvertiser);
+            advertisements.put(operaId, startId);
 
-        advertiser = ((BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter().getBluetoothLeAdvertiser();
-
-        byte[] serviceData = new byte[20];
-        dataHex = dataHex.toUpperCase();
-        for(int i=0; i<serviceData.length; i++) {
-            serviceData[i] = (byte) (Integer.parseInt(dataHex.substring(i*2, i*2+2), 16) & 0xFF);
+            operaAdvertiser.startAdvertising();
         }
+    }
 
-        ParcelUuid parcelUuid = new ParcelUuid(UUID.fromString(serviceUuid));
-
-        AdvertisingSetParameters parameters = new AdvertisingSetParameters.Builder()
-                .setLegacyMode(true)
-                .setConnectable(false)
-                .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
-                .build();
-        AdvertiseData data = new AdvertiseData.Builder()
-                .setIncludeDeviceName(false)
-                .setIncludeTxPowerLevel(false)
-                .addServiceData(parcelUuid, serviceData)
-                .addServiceUuid(parcelUuid)
-                .build();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "startAdvertising: permission error");
-            return;
+    private void stopAdverting(String operaId) {
+        if(advertisers.containsKey(operaId)) {
+            OperaAdvertiser operaAdvertiser = advertisers.get(operaId);
+            operaAdvertiser.stopAdvertising();
+            advertisers.remove(operaId);
+            int startId = advertisements.remove(operaId);
+            stopSelf(startId);
         }
-        advertiser.startAdvertisingSet(parameters, data, null, null, null, new OperaAdvertisingSetCallback(operaId));
-        advertisements.put(operaId, startId);
+    }
+
+    private void stopAllAdvertising() {
+        if(advertisers.size() > 0) {
+            for(Map.Entry<String, OperaAdvertiser> entry : advertisers.entrySet()) {
+                OperaAdvertiser operaAdvertiser = advertisers.get(entry.getKey());
+                operaAdvertiser.stopAdvertising();
+                int startId = advertisements.get(entry.getKey());
+                stopSelf(startId);
+            }
+            advertisers.clear();
+            advertisements.clear();
+        }
+    }
+
+    public static void startService(Context context, String operaId, String serviceUuid) {
+        Intent i = new Intent(context, OperaAdvertiserService.class);
+        i.setAction(ACTION_START);
+        i.putExtra("operaId", operaId);
+        i.putExtra("serviceUuid", serviceUuid);
+        context.startService(i);
+    }
+
+    public static void stopService(Context context, String operaId) {
+        Intent i = new Intent(context, OperaAdvertiserService.class);
+        i.setAction(ACTION_STOP);
+        i.putExtra("operaId", operaId);
+        context.startService(i);
+    }
+
+    public static void stopAllServices(Context context) {
+        Intent i = new Intent(context, OperaAdvertiserService.class);
+        i.setAction(ACTION_STOP_ALL);
+        context.startService(i);
     }
 
     @Override
@@ -127,21 +142,6 @@ public class OperaAdvertiserService extends Service {
         Log.d(TAG, "onUnbind: service unbounded");
         return super.onUnbind(intent);
     }
-
-    /**
-     * Stoppa la trasmissione dei dati tramite bluetooth.
-     */
-    private void stopAdvertising(String operaId) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "stopAdvertising: permission error");
-            return;
-        }
-
-        if(advertisements.containsKey(operaId) && advertisements.get(operaId) != null) {
-            advertiser.stopAdvertisingSet(new OperaAdvertisingSetCallback(operaId));
-        }
-    }
-
 
 
     public class OperaAdvertisingSetCallback extends AdvertisingSetCallback {
