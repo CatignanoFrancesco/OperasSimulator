@@ -19,9 +19,9 @@ import java.util.UUID;
 public class OperaAdvertiser {
     private static final String TAG = "OperaAdvertiser";
     /**
-     * Un UUID è formato da 128 bit. Tuttavia usarli tutti sarebbe dispendioso. Quindi nel caso del bluetooth, si usa un UUID a 16 bit..
-     * L'UUID a 16 bit è fatto in questo modo: si un uuid completo a 128 fatto in questo modo: xxxxxxxx{@value} e si cambiano solo
-     * i primi 8 caratteri. In questo caso i caratteri usati sono tutti uguali a 0. Utilizzare un UUID diverso, porta ad errori come "Data too large"
+     * Un UUID è formato da 128 bit. Tuttavia usarli tutti sarebbe dispendioso. Quindi nel caso del bluetooth, si usa un UUID a 16 bit.
+     * L'UUID a 16 bit è fatto in questo modo: si usa un UUID a 128 bit (del tipo xxxxxxxx{@value}) e si cambiano solo
+     * i primi 8 caratteri. Utilizzare un UUID diverso, porta ad errori come "Data too large"
      * <br>
      * <a href="https://www.oreilly.com/library/view/getting-started-with/9781491900550/ch04.html">Fonte</a>
      */
