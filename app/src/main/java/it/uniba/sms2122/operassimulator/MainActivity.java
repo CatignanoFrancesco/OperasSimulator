@@ -44,7 +44,6 @@ import it.uniba.sms2122.operassimulator.utility.Permission;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
-    private static final String JSON_MIME_TYPE = "application/json";
 
     private TextView roomNameTV;
     private Button addRoomButton;
@@ -95,20 +94,13 @@ public class MainActivity extends AppCompatActivity {
                     Uri uri;
                     if(result.getData() != null) {
                         uri = result.getData().getData();
-                        String mimeType = getContentResolver().getType(uri);
-
-                        if(mimeType.equals(JSON_MIME_TYPE)) {
-                            // Apro il file
-                            try (Reader reader = new InputStreamReader(getContentResolver().openInputStream(uri))) {
-                                selectedStanza = new Gson().fromJson(reader, Stanza.class);
-                                changeState();
-                            }
-                            catch(Exception ex) {
-                                showGenericErrorDialog();
-                                Log.e(TAG, ex.getMessage());
-                            }
-                        } else {
-                            Log.e(TAG, "Errore non previsto sul file aperto");
+                        try (Reader reader = new InputStreamReader(getContentResolver().openInputStream(uri))) {
+                            selectedStanza = new Gson().fromJson(reader, Stanza.class);
+                            changeState();
+                        }
+                        catch(Exception ex) {
+                            showGenericErrorDialog();
+                            Log.e(TAG, ex.getMessage());
                         }
                     } else {
                         showGenericErrorDialog();
@@ -132,7 +124,7 @@ public class MainActivity extends AppCompatActivity {
 
         addRoomButton.setOnClickListener(view -> {
             Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-            intent.setType(JSON_MIME_TYPE);
+            intent.setType("*/*");
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             jsonRoomActivityLauncher.launch(intent);
         });
