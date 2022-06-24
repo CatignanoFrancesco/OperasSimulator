@@ -3,6 +3,7 @@ package it.uniba.sms2122.operassimulator;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -18,21 +19,19 @@ public class OperaAdvertiserService extends Service {
     public static final String ACTION_STOP = PREFIX + "ACTION_STOP";
     public static final String ACTION_STOP_ALL = PREFIX + "ACTION_STOP_ALL";
 
-    private Map<String, Integer> activeServices;    // Gli id dei servizi attivi.
-    private Map<String, OperaAdvertiser> activeAdvertisers; // Gli advertiser attivi.
+    private static Map<String, OperaAdvertiser> activeAdvertisers; // Gli advertiser attivi.
+    private final IBinder binder = new LocalBinder();
 
     @Override
     public void onCreate() {
         super.onCreate();
-
-        activeServices = new HashMap<>();
         activeAdvertisers = new HashMap<>();
     }
 
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
-        return null;
+        return binder;
     }
 
     @Override
@@ -43,7 +42,7 @@ public class OperaAdvertiserService extends Service {
 
         switch(action) {
             case ACTION_START:
-                startAdvertising(operaId, serviceUuid, startId);
+                startAdvertising(operaId, serviceUuid);
                 break;
             case ACTION_STOP:
                 stopAdverting(operaId);
@@ -62,13 +61,11 @@ public class OperaAdvertiserService extends Service {
      * Crea un advertiser e fa partire l'advertising.
      * @param operaId L'id dell'opera di cui fare l'advertising
      * @param serviceUuid Il service uuid dell'adveriser
-     * @param startId Lo start id del service
      */
-    private void startAdvertising(String operaId, String serviceUuid, int startId) {
+    public void startAdvertising(String operaId, String serviceUuid) {
         if(!activeAdvertisers.containsKey(operaId)) {
             OperaAdvertiser operaAdvertiser = new OperaAdvertiser(this, operaId, serviceUuid);
             activeAdvertisers.put(operaId, operaAdvertiser);
-            activeServices.put(operaId, startId);
 
             operaAdvertiser.startAdvertising();
         }
@@ -78,29 +75,24 @@ public class OperaAdvertiserService extends Service {
      * Stoppa l'advertising di una determinata opera.
      * @param operaId L'id dell'opera di cui si vuole stoppare l'advertising
      */
-    private void stopAdverting(String operaId) {
+    public void stopAdverting(String operaId) {
         if(activeAdvertisers.containsKey(operaId)) {
             OperaAdvertiser operaAdvertiser = activeAdvertisers.get(operaId);
             operaAdvertiser.stopAdvertising();
             activeAdvertisers.remove(operaId);
-            int startId = activeServices.remove(operaId);
-            stopSelf(startId);
         }
     }
 
     /**
      * Stoppa tutti gli advertising attivi.
      */
-    private void stopAllAdvertising() {
+    public void stopAllAdvertising() {
         if(activeAdvertisers.size() > 0) {
             for(Map.Entry<String, OperaAdvertiser> entry : activeAdvertisers.entrySet()) {
                 OperaAdvertiser operaAdvertiser = activeAdvertisers.get(entry.getKey());
                 operaAdvertiser.stopAdvertising();
-                int startId = activeServices.get(entry.getKey());
-                stopSelf(startId);
             }
             activeAdvertisers.clear();
-            activeServices.clear();
         }
     }
 
@@ -123,40 +115,12 @@ public class OperaAdvertiserService extends Service {
      * ****************************************
      *
      */
-    /**
-     * Metodo pubblico per far partire l'advertising di una determinata opera.
-     * @param context Il contesto
-     * @param operaId L'id dell'opera di cui si vuole fare l'advertising.
-     * @param serviceUuid Il service uuid dell'advertiser.
-     */
-    public static void startService(Context context, String operaId, String serviceUuid) {
-        Intent i = new Intent(context, OperaAdvertiserService.class);
-        i.setAction(ACTION_START);
-        i.putExtra("operaId", operaId);
-        i.putExtra("serviceUuid", serviceUuid);
-        context.startService(i);
-    }
 
-    /**
-     * Metodo pubblico per stoppare uno specifico advertising.
-     * @param context Il contesto
-     * @param operaId L'id dell'opera di cui si vuole stoppare l'advertising.
-     */
-    public static void stopService(Context context, String operaId) {
-        Intent i = new Intent(context, OperaAdvertiserService.class);
-        i.setAction(ACTION_STOP);
-        i.putExtra("operaId", operaId);
-        context.startService(i);
-    }
 
-    /**
-     * Metodo pubblico per stoppare tutti gli advertising attivi.
-     * @param context Il contesto.
-     */
-    public static void stopAllServices(Context context) {
-        Intent i = new Intent(context, OperaAdvertiserService.class);
-        i.setAction(ACTION_STOP_ALL);
-        context.startService(i);
+    public class LocalBinder extends Binder {
+        public OperaAdvertiserService getService() {
+            return OperaAdvertiserService.this;
+        }
     }
 
 }

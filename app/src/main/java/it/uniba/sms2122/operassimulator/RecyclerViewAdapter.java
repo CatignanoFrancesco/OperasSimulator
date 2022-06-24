@@ -16,6 +16,7 @@ import it.uniba.sms2122.operassimulator.model.Opera;
 
 public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapter.OperaViewHolder> {
     private final MainActivity mainActivity;
+    private OperaAdvertiserService service;
     private static ArrayList<Opera> opere;
     private static HashMap<String, String> serviceUuids;
 
@@ -42,10 +43,10 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
 
         holder.btSwitch.setOnCheckedChangeListener((compoundButton, bChecked) -> {
             if(bChecked) {
-                OperaAdvertiserService.startService(mainActivity, operaId, serviceUuids.get(operaId));
+                mainActivity.startAdvertising(operaId, serviceUuids.get(operaId));
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_started, operaId), Toast.LENGTH_SHORT).show();
             } else {
-                OperaAdvertiserService.stopService(mainActivity, operaId);
+                mainActivity.stopAdvertising(operaId);
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_stopped, operaId), Toast.LENGTH_SHORT).show();
             }
         });
