@@ -11,14 +11,18 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -50,6 +54,20 @@ public class MainActivity extends AppCompatActivity {
 
     private Permission permission;
     private Stanza selectedStanza;
+
+    private OperaAdvertiserService service;
+
+    private final ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
+            service = ((OperaAdvertiserService.LocalBinder) iBinder).getService();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            service = null;
+        }
+    };
 
     // Gestione del risultato dell'attivazione del bluetooth
     private final ActivityResultLauncher<Intent> btActivityResultLauncher = registerForActivityResult(
@@ -123,7 +141,8 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if(item.getItemId() == R.id.trash) {
             changeState();
-            OperaAdvertiserService.stopAllServices(this);
+            service.stopAllAdvertising();
+            unbindService(serviceConnection);
             return true;
         }
         return false;
@@ -171,7 +190,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        OperaAdvertiserService.stopAllServices(this);
+        if(service != null && service.isBound()) {
+            service.stopAllAdvertising();
+        }
     }
 
     @Override
@@ -228,6 +249,7 @@ public class MainActivity extends AppCompatActivity {
             addRoomButton.setVisibility(View.GONE);
             container.setVisibility(View.VISIBLE);
             isListVisible = true;
+            bindService(new Intent(this, OperaAdvertiserService.class), serviceConnection, Service.BIND_AUTO_CREATE);
         } else {
             container.setVisibility(View.GONE);
             addRoomButton.setVisibility(View.VISIBLE);
@@ -235,6 +257,23 @@ public class MainActivity extends AppCompatActivity {
         }
 
         menu.findItem(R.id.trash).setVisible(isListVisible);
+    }
+
+    /**
+     * Avvia il service
+     * @param operaId L'id dell'opera che si vuole trasmettere
+     * @param serviceUuid L'id del service
+     */
+    public void startAdvertising(String operaId, String serviceUuid) {
+        if(service != null && service.isBound()) {
+            service.startAdvertising(operaId, serviceUuid);
+        }
+    }
+
+    public void stopAdvertising(String operaId) {
+        if(service != null && service.isBound()) {
+            service.stopAdverting(operaId);
+        }
     }
 
 }

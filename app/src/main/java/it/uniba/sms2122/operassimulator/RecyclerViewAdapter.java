@@ -42,20 +42,27 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
 
         holder.btSwitch.setOnCheckedChangeListener((compoundButton, bChecked) -> {
             if(bChecked) {
-                OperaAdvertiserService.startService(mainActivity, operaId, serviceUuids.get(operaId));
+                mainActivity.startAdvertising(operaId, serviceUuids.get(operaId));
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_started, operaId), Toast.LENGTH_SHORT).show();
             } else {
-                OperaAdvertiserService.stopService(mainActivity, operaId);
+                mainActivity.stopAdvertising(operaId);
                 Toast.makeText(mainActivity, mainActivity.getString(R.string.bt_stopped, operaId), Toast.LENGTH_SHORT).show();
             }
         });
     }
 
+    /**
+     * Pulisce la recycler view
+     */
     public void clear() {
         opere.clear();
         serviceUuids.clear();
     }
 
+    /**
+     * Aggiunge le opere alla recycler view
+     * @param opere Le opere da aggiungere
+     */
     public void addOperas(ArrayList<Opera> opere) {
         RecyclerViewAdapter.opere.addAll(opere);
     }
