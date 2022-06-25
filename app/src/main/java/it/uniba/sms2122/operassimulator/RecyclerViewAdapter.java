@@ -16,7 +16,6 @@ import it.uniba.sms2122.operassimulator.model.Opera;
 
 public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapter.OperaViewHolder> {
     private final MainActivity mainActivity;
-    private OperaAdvertiserService service;
     private static ArrayList<Opera> opere;
     private static HashMap<String, String> serviceUuids;
 
@@ -52,11 +51,18 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
         });
     }
 
+    /**
+     * Pulisce la recycler view
+     */
     public void clear() {
         opere.clear();
         serviceUuids.clear();
     }
 
+    /**
+     * Aggiunge le opere alla recycler view
+     * @param opere Le opere da aggiungere
+     */
     public void addOperas(ArrayList<Opera> opere) {
         RecyclerViewAdapter.opere.addAll(opere);
     }

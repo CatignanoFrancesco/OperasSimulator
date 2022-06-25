@@ -56,18 +56,15 @@ public class MainActivity extends AppCompatActivity {
     private Stanza selectedStanza;
 
     private OperaAdvertiserService service;
-    private boolean bound = false;
 
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             service = ((OperaAdvertiserService.LocalBinder) iBinder).getService();
-            bound = true;
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
-            bound = false;
             service = null;
         }
     };
@@ -193,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if(service != null && bound) {
+        if(service != null && service.isBound()) {
             service.stopAllAdvertising();
         }
     }
@@ -262,14 +259,19 @@ public class MainActivity extends AppCompatActivity {
         menu.findItem(R.id.trash).setVisible(isListVisible);
     }
 
+    /**
+     * Avvia il service
+     * @param operaId L'id dell'opera che si vuole trasmettere
+     * @param serviceUuid L'id del service
+     */
     public void startAdvertising(String operaId, String serviceUuid) {
-        if(service != null && bound) {
+        if(service != null && service.isBound()) {
             service.startAdvertising(operaId, serviceUuid);
         }
     }
 
     public void stopAdvertising(String operaId) {
-        if(service != null && bound) {
+        if(service != null && service.isBound()) {
             service.stopAdverting(operaId);
         }
     }

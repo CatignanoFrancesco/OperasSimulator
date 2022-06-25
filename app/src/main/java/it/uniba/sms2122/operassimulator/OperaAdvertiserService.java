@@ -14,13 +14,10 @@ import java.util.Map;
 
 public class OperaAdvertiserService extends Service {
     private static final String TAG = "OperaAdvertiserService";
-    private static final String PREFIX = "it.uniba.sms2122.operassimulator.service.";
-    public static final String ACTION_START = PREFIX + "ACTION_START";
-    public static final String ACTION_STOP = PREFIX + "ACTION_STOP";
-    public static final String ACTION_STOP_ALL = PREFIX + "ACTION_STOP_ALL";
 
     private static Map<String, OperaAdvertiser> activeAdvertisers; // Gli advertiser attivi.
     private final IBinder binder = new LocalBinder();
+    private boolean bound = false;
 
     @Override
     public void onCreate() {
@@ -31,29 +28,12 @@ public class OperaAdvertiserService extends Service {
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
+        bound = true;
         return binder;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent.getAction();
-        String serviceUuid = !intent.hasExtra("serviceUuid") ? "" : intent.getStringExtra("serviceUuid");
-        String operaId = !intent.hasExtra("operaId") ? "" : intent.getStringExtra("operaId");
-
-        switch(action) {
-            case ACTION_START:
-                startAdvertising(operaId, serviceUuid);
-                break;
-            case ACTION_STOP:
-                stopAdverting(operaId);
-                break;
-            case ACTION_STOP_ALL:
-                stopAllAdvertising();
-            default:
-                Log.d(TAG, "onStartCommand: default");
-                break;
-        }
-
         return START_NOT_STICKY;
     }
 
@@ -66,7 +46,6 @@ public class OperaAdvertiserService extends Service {
         if(!activeAdvertisers.containsKey(operaId)) {
             OperaAdvertiser operaAdvertiser = new OperaAdvertiser(this, operaId, serviceUuid);
             activeAdvertisers.put(operaId, operaAdvertiser);
-
             operaAdvertiser.startAdvertising();
         }
     }
@@ -105,17 +84,14 @@ public class OperaAdvertiserService extends Service {
     @Override
     public boolean onUnbind(Intent intent) {
         Log.d(TAG, "onUnbind: service unbounded");
+        stopAllAdvertising();
+        bound = false;
         return super.onUnbind(intent);
     }
 
-
-    /*
-     ******************************************
-     *             METODI PUBBLICI
-     * ****************************************
-     *
-     */
-
+    public boolean isBound() {
+        return bound;
+    }
 
     public class LocalBinder extends Binder {
         public OperaAdvertiserService getService() {
